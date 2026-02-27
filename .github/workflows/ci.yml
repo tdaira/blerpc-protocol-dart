@@ -32,3 +32,33 @@ jobs:
           sdk: "3.5.0"
       - run: dart pub get
       - run: dart test --reporter=expanded
+
+  publish:
+    name: Publish to pub.dev
+    needs: [analyze, test]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: "3.5.0"
+      - run: dart pub get
+      - name: Check if version changed
+        id: version_check
+        run: |
+          LOCAL_VERSION=$(grep '^version:' pubspec.yaml | awk '{print $2}')
+          PUB_VERSION=$(curl -s "https://pub.dev/api/packages/blerpc_protocol" | python3 -c "import sys,json; print(json.load(sys.stdin)['latest']['version'])" 2>/dev/null || echo "0.0.0")
+          echo "local=$LOCAL_VERSION"
+          echo "pub=$PUB_VERSION"
+          if [ "$LOCAL_VERSION" != "$PUB_VERSION" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish
+        if: steps.version_check.outputs.changed == 'true'
+        run: dart pub publish --force
