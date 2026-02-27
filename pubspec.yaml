@@ -1,0 +1,15 @@
+name: blerpc_protocol
+description: Pure Dart protocol library for blerpc — container, command, and encryption layers for BLE RPC.
+version: 0.6.0
+repository: https://github.com/tdaira/blerpc-protocol-dart
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  cryptography: ^2.9.0
+  meta: ^1.15.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^5.0.0
