@@ -4,6 +4,16 @@ import 'package:blerpc_protocol/blerpc_protocol.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:test/test.dart';
 
+/// In-memory [KnownKeyStore] for TOFU tests.
+class _InMemoryStore implements KnownKeyStore {
+  final Map<String, String> map = {};
+  @override
+  String? get(String deviceId) => map[deviceId];
+  @override
+  void put(String deviceId, String hexEd25519Pubkey) =>
+      map[deviceId] = hexEd25519Pubkey;
+}
+
 void main() {
   group('ControlCmd KEY_EXCHANGE', () {
     test('enum value', () {
@@ -815,6 +825,7 @@ void main() {
       final session = await centralPerformKeyExchange(
         send: mockSend,
         receive: mockReceive,
+        pinIdentity: false,
       );
 
       // Verify session works
@@ -878,6 +889,53 @@ void main() {
       );
       expect(session, isNotNull);
       expect(seenKeys[0], periphEdPub);
+    });
+
+    Future<BlerpcCryptoSession> runTofu(
+      SimpleKeyPairData seed,
+      KnownKeyStore? store,
+      String? deviceId, {
+      bool pinIdentity = true,
+    }) async {
+      final periphKx = PeripheralKeyExchange(seed);
+      final payloads = <Uint8List>[];
+      return centralPerformKeyExchange(
+        send: (p) async {
+          final (r, _) = await periphKx.handleStep(p);
+          payloads.add(r);
+        },
+        receive: () async => payloads.removeAt(0),
+        knownKeys: store,
+        deviceId: deviceId,
+        pinIdentity: pinIdentity,
+      );
+    }
+
+    test('TOFU pins then matches', () async {
+      final (seed, _) = await BlerpcCrypto.generateEd25519KeyPair();
+      final store = _InMemoryStore();
+      await runTofu(seed, store, 'dev-1'); // first use: pinned
+      expect(store.map.length, 1);
+      await runTofu(seed, store, 'dev-1'); // same key: matches
+    });
+
+    test('TOFU rejects changed key', () async {
+      final store = _InMemoryStore();
+      final (seed1, _) = await BlerpcCrypto.generateEd25519KeyPair();
+      await runTofu(seed1, store, 'dev-1'); // pin
+      final (seed2, _) = await BlerpcCrypto.generateEd25519KeyPair();
+      expect(() => runTofu(seed2, store, 'dev-1'), throwsA(isA<ArgumentError>()));
+    });
+
+    test('fail-closed without store', () async {
+      final (seed, _) = await BlerpcCrypto.generateEd25519KeyPair();
+      expect(() => runTofu(seed, null, null), throwsA(isA<ArgumentError>()));
+    });
+
+    test('opt out skips pinning', () async {
+      final (seed, _) = await BlerpcCrypto.generateEd25519KeyPair();
+      final session = await runTofu(seed, null, null, pinIdentity: false);
+      expect(session, isNotNull);
     });
   });
 
