@@ -924,7 +924,8 @@ void main() {
       final (seed1, _) = await BlerpcCrypto.generateEd25519KeyPair();
       await runTofu(seed1, store, 'dev-1'); // pin
       final (seed2, _) = await BlerpcCrypto.generateEd25519KeyPair();
-      expect(() => runTofu(seed2, store, 'dev-1'), throwsA(isA<ArgumentError>()));
+      expect(
+          () => runTofu(seed2, store, 'dev-1'), throwsA(isA<ArgumentError>()));
     });
 
     test('fail-closed without store', () async {
