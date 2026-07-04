@@ -1,3 +1,8 @@
+## 0.8.0
+
+- Apache-2.0 relicense
+- Version aligned with the blerpc protocol ecosystem (lockstep 0.8.0)
+
 ## 0.6.0
 
 - Initial release
